@@ -4,11 +4,14 @@
 
 			var gChannelCommandControl      = "af230002-879d-6186-1f49-deca0e85d9c1";
 			var gChannelSensorPacket1       = "af230003-879d-6186-1f49-deca0e85d9c1";
-			var gChannelSensorPacket2       = "af230006-879d-6186-1f49-deca0e85d9c1";
 
 			var gEndPointDefault            = "af237777-879d-6186-1f49-deca0e85d9c1";
 
 			var gCharacteristicCommand;
+
+			var gIntervalMilliseconds = 20;
+			var gTimeStart;
+			var gWriteCount;
 
 			function gebid(id) {
 				return document.getElementById(id);
@@ -29,40 +32,95 @@
 					return service.getCharacteristic(gChannelCommandControl);
 				})
 				.then(characteristic => {
-					var cmd = Uint8Array.of(0x03,0xf0,0xf0,0x00);
 					gCharacteristicCommand = characteristic;
 
 					gebid('buttons').style.display="block";
+					gTimeStart = timeNow();
+					gWriteCount = 0;
 					updateInfo(characteristic);
-
-					return characteristic.writeValue(cmd);
+					tick();
 				})
 
 			}
 
+			function write(bytes) {
+				gCharacteristicCommand.writeValue(bytes)
+				.then(characteristic => {
+					gWriteCount += 1;
+					updateInfo(gCharacteristicCommand);
+				});
+			}
+
 			function rgb(r, g, b) {
 				var cmd;
-				cmd = Uint8Array.of(0x03, r, g, b);
-				gCharacteristicCommand.writeValue(cmd);
+				cmd = Uint8Array.of(0x03, r, g, b,
+									0x0b, r, g, b,
+									0x0c, r, g, b);
+				write(cmd);
+			}
+
+			function timeNow() {
+				return new Date().getTime() / 1000;
 			}
 
 			function updateInfo(characteristic) {
+				var dt = timeNow() - gTimeStart;
+				var wps = dt == 0 ? (0) : (gWriteCount / dt);
+
+
 				var s = "";
-				s += "Connected to <b>" + characteristic.service.device.name + "</b>.";
+				s +=          "Connected to <b>" + characteristic.service.device.name + "</b>.";
+				s += "<br>" + "Number of writes: " + gWriteCount;
+				s += "<br>" + "Writes per second: " + Math.ceil(wps);
 
 				gebid('info').innerHTML = s;
-
 			}
+
+			var gTimer;
+			function tick() {
+				clearTimeout(gTimer);
+				doTick()
+				gTimer = setTimeout(tick, gIntervalMilliseconds);
+			}
+
+			var gTargR = 255;
+			var gTargG = 255;
+			var gTargB = 255;
+			function setRGB(r, g, b) {
+				gTargR = r;
+				gTargG = g;
+				gTargB = b;
+			}
+
+			var gTickNum = 0;
+			function doTick() {
+				var r = (Math.sin(gTickNum * 0.1) * 0.5 + 0.5) * gTargR;
+				var g = (Math.sin(gTickNum * 0.1) * 0.5 + 0.5) * gTargG;
+				var b = (Math.sin(gTickNum * 0.1) * 0.5 + 0.5) * gTargB;
+				rgb(r, g, b);
+				gTickNum += 1;
+			}
+
+
 		</script>
+		<style>
+			body {
+				font-family:helvetica;
+			}
+		</style>
 	</head>
 	<body>
-		hello.<br>
-		<button onclick="doit()">click me</button><br>
+		quick demo of the Web BlueTooth API.<br>
+		requires Chrome 56+<br>
+		<br>
+		<button onclick="doit()">scan for robots</button><br>
+		<br>
 		<div id="info" style="font-family:courier"></div>
+		<br>
 		<div id="buttons" style="display:none">
-			<button onclick="rgb(255, 255,   0)">yellow</button>
-			<button onclick="rgb(255,   0, 255)">magenta</button>
-			<button onclick="rgb(  0, 255, 255)">cyan</button>
+			<button onclick="setRGB(255, 255,   0)">yellow</button>
+			<button onclick="setRGB(255,   0, 255)">magenta</button>
+			<button onclick="setRGB(  0, 255, 255)">cyan</button>
 		</div>
 	</body>
 </html>
